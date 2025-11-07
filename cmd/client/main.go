@@ -29,7 +29,7 @@ func main() {
 
 func serveIndex(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
-		"WebSocketURL": "ws://localhost:8080/ws",
+		"WebSocketURL": os.Getenv("WEB_SOCKET_URL"),
 	}
 	err := templates.ExecuteTemplate(w, "index.html", data)
 	if err != nil {
