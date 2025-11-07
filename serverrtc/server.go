@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,17 +22,15 @@ type Message struct {
 }
 
 type ServerRTC struct {
-	serverChannel  chan Message
-	peerConnection map[string]*webrtc.PeerConnection
-	lock           *sync.RWMutex
+	serverChannel   chan Message
+	peerConnections *PeerConnections
 }
 
 func NewServerRTC() *ServerRTC {
 	serverChannel := make(chan Message)
 	return &ServerRTC{
-		serverChannel:  serverChannel,
-		peerConnection: make(map[string]*webrtc.PeerConnection),
-		lock:           &sync.RWMutex{},
+		serverChannel:   serverChannel,
+		peerConnections: NewPeerConnections(),
 	}
 }
 
@@ -51,27 +48,24 @@ func (srv *ServerRTC) RunServerListener() chan Message {
 					continue
 				}
 
-				srv.lock.RLock()
-				peerConnection, ok := srv.peerConnection[msg.Id.String()]
+				peerConnection, ok := srv.peerConnections.Get(msg.Id.String())
 				if !ok {
 					log.Println("peer connection not exists")
 					continue
 				}
-				srv.lock.RUnlock()
+
 				log.Printf("Received ICE candidate from browser: %s", candidate.Candidate)
-				if err := peerConnection.AddICECandidate(candidate); err != nil {
+				if err := peerConnection.peer.AddICECandidate(candidate); err != nil {
 					log.Println("AddICECandidate error:", err)
 					continue
 				}
 			case "close":
-				srv.lock.RLock()
-				peerConnection, ok := srv.peerConnection[msg.Id.String()]
+				peerConnection, ok := srv.peerConnections.Get(msg.Id.String())
 				if !ok {
 					log.Println("peer connection not exists")
 					continue
 				}
-				srv.lock.RUnlock()
-				peerConnection.Close()
+				peerConnection.peer.Close()
 			}
 		}
 	}()
@@ -94,9 +88,7 @@ func (srv *ServerRTC) handleOffer(msg Message) {
 		return
 	}
 	peerConnection.OnTrack(srv.handleTrack)
-	srv.lock.Lock()
-	srv.peerConnection[msg.Id.String()] = peerConnection
-	srv.lock.Unlock()
+	srv.peerConnections.New(msg.Id.String(), peerConnection)
 
 	var offer webrtc.SessionDescription
 	if err := json.Unmarshal([]byte(msg.Payload), &offer); err != nil {
