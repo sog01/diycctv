@@ -2,14 +2,14 @@ function createPeer() {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   })
-  pc.onnegotiationneeded = handleNegotiaionNeeded
+  pc.onnegotiationneeded = sendOffer
   pc.onicecandidate = handleIceCandidate
   pc.onconnectionstatechange = handleConnectionStateChange
 
   return pc
 }
 
-async function handleNegotiaionNeeded() {
+async function sendOffer() {
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
   ws.send(
@@ -18,6 +18,7 @@ async function handleNegotiaionNeeded() {
       payload: JSON.stringify(offer),
     })
   )
+  console.log("Sent offer")
 }
 
 function handleIceCandidate(event) {

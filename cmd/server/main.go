@@ -18,6 +18,7 @@ type BroadcastMessage struct {
 }
 
 type WebSocketMessage struct {
+	StreamId     string `json:"streamId"`
 	Type         string `json:"type"`
 	Payload      string `json:"payload"`
 	IsLiveStream bool   `json:"isLiveStream"`
@@ -86,6 +87,7 @@ func runBroadcaster(serverChannel chan serverrtc.Message) {
 		msg := <-broadcast
 		serverChannel <- serverrtc.Message{
 			Id:         msg.Id,
+			StreamId:   msg.Msg.StreamId,
 			Type:       msg.Msg.Type,
 			Payload:    msg.Msg.Payload,
 			SocketConn: msg.SocketConn,

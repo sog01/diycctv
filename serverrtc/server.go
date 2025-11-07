@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media/ivfwriter"
 	wrtc "github.com/sog01/diycctv/pkg/webrtc"
@@ -16,6 +17,7 @@ import (
 
 type Message struct {
 	Id         uuid.UUID
+	StreamId   string
 	Type       string
 	Payload    string
 	SocketConn *websocket.Conn
@@ -41,6 +43,26 @@ func (srv *ServerRTC) RunServerListener() chan Message {
 			switch msg.Type {
 			case "offer":
 				srv.handleOffer(msg)
+			case "stream":
+				srv.handleStream(msg)
+			case "answer":
+				var answer webrtc.SessionDescription
+				if err := json.Unmarshal([]byte(msg.Payload), &answer); err != nil {
+					log.Println("Unmarshal candidate error:", err)
+					continue
+				}
+
+				peerConnection, ok := srv.peerConnections.Get(msg.Id.String())
+				if !ok {
+					log.Println("peer connection not exists")
+					continue
+				}
+
+				log.Printf("Received Answer from browser")
+				if err := peerConnection.peer.SetRemoteDescription(answer); err != nil {
+					log.Println("Set Remote Description error:", err)
+					continue
+				}
 			case "candidate":
 				var candidate webrtc.ICECandidateInit
 				if err := json.Unmarshal([]byte(msg.Payload), &candidate); err != nil {
@@ -65,6 +87,7 @@ func (srv *ServerRTC) RunServerListener() chan Message {
 					log.Println("peer connection not exists")
 					continue
 				}
+				srv.peerConnections.Remove(msg.Id.String())
 				peerConnection.peer.Close()
 			}
 		}
@@ -91,7 +114,67 @@ func (srv *ServerRTC) handleOffer(msg Message) {
 		srv.handleTrack(msg.Id.String(), tr, r)
 	})
 	srv.peerConnections.New(msg.Id.String(), peerConnection)
+	srv.sendAnswer(msg, peerConnection)
+}
 
+func (srv *ServerRTC) handleStream(msg Message) {
+	log.Println("Received stream")
+	peerStream, ok := srv.peerConnections.Get(msg.StreamId)
+	if !ok {
+		log.Println("peer stream not found: ", msg.StreamId)
+		return
+	}
+
+	if peerStream.localTrack == nil {
+		log.Println("local track not ready yet, camera not connected")
+	}
+
+	config := webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			},
+		},
+	}
+	peerConnection, err := wrtc.CreatePeer(config, msg.SocketConn)
+	if err != nil {
+		log.Println("failed to create peer: ", err)
+		return
+	}
+	peerConnection.AddTrack(peerStream.localTrack)
+	srv.peerConnections.New(msg.Id.String(), peerConnection)
+	srv.sendOffer(msg, peerConnection)
+}
+
+func (srv *ServerRTC) sendOffer(msg Message, peerConnection *webrtc.PeerConnection) {
+	offer, err := peerConnection.CreateOffer(nil)
+	if err != nil {
+		log.Println("failed create offer error:", err)
+		return
+	}
+
+	if err := peerConnection.SetLocalDescription(offer); err != nil {
+		log.Println("SetRemoteDescription error:", err)
+		return
+	}
+
+	offerJSON, err := json.Marshal(offer)
+	if err != nil {
+		log.Println("failed to marshal offer:", err)
+		return
+	}
+
+	if err := msg.SocketConn.WriteJSON(map[string]any{
+		"type":    "offer",
+		"payload": string(offerJSON),
+	}); err != nil {
+		log.Println("Write offer error:", err)
+		return
+	}
+	log.Println("Sent offer")
+}
+
+func (srv *ServerRTC) sendAnswer(msg Message, peerConnection *webrtc.PeerConnection) {
 	var offer webrtc.SessionDescription
 	if err := json.Unmarshal([]byte(msg.Payload), &offer); err != nil {
 		log.Println("Unmarshal offer error:", err)
@@ -130,17 +213,36 @@ func (srv *ServerRTC) handleOffer(msg Message) {
 	log.Println("Sent answer")
 }
 
-func (srv ServerRTC) handleTrack(id string, track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+func (srv *ServerRTC) handleTrack(id string, track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 	log.Printf("Got %s track: %s", track.Kind(), track.Codec().MimeType)
 
 	if track.Kind() != webrtc.RTPCodecTypeVideo {
 		return
 	}
 
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			// Use the peer connection to send RTCP
+			if peerConn, ok := srv.peerConnections.Get(id); ok && peerConn.peer != nil {
+				if rtcpErr := peerConn.peer.WriteRTCP([]rtcp.Packet{
+					&rtcp.PictureLossIndication{MediaSSRC: uint32(track.SSRC())},
+				}); rtcpErr != nil {
+					log.Printf("RTCP error: %v", rtcpErr)
+				} else {
+					log.Println("Sent keyframe request to camera")
+				}
+			} else {
+				break
+			}
+		}
+	}()
+
 	os.Mkdir("./records", 0755)
 
-	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	filename := fmt.Sprintf("./records/recording_%s.ivf", timestamp)
+	filename := fmt.Sprintf("./records/recording_%s.ivf", id)
 
 	file, err := os.Create(filename)
 	if err != nil {

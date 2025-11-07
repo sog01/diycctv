@@ -38,6 +38,12 @@ func (p *PeerConnections) Get(id string) (*PeerConnection, bool) {
 	return peerConnection, ok
 }
 
+func (p *PeerConnections) Remove(id string) {
+	p.lock.Lock()
+	delete(p.peerConnections, id)
+	p.lock.Unlock()
+}
+
 func NewPeerConnections() *PeerConnections {
 	return &PeerConnections{
 		lock:            &sync.RWMutex{},
