@@ -87,7 +87,9 @@ func (srv *ServerRTC) handleOffer(msg Message) {
 		log.Println("failed to create peer: ", err)
 		return
 	}
-	peerConnection.OnTrack(srv.handleTrack)
+	peerConnection.OnTrack(func(tr *webrtc.TrackRemote, r *webrtc.RTPReceiver) {
+		srv.handleTrack(msg.Id.String(), tr, r)
+	})
 	srv.peerConnections.New(msg.Id.String(), peerConnection)
 
 	var offer webrtc.SessionDescription
@@ -128,7 +130,7 @@ func (srv *ServerRTC) handleOffer(msg Message) {
 	log.Println("Sent answer")
 }
 
-func (srv ServerRTC) handleTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+func (srv ServerRTC) handleTrack(id string, track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 	log.Printf("Got %s track: %s", track.Kind(), track.Codec().MimeType)
 
 	if track.Kind() != webrtc.RTPCodecTypeVideo {
@@ -155,6 +157,18 @@ func (srv ServerRTC) handleTrack(track *webrtc.TrackRemote, receiver *webrtc.RTP
 		return
 	}
 
+	localTrack, err := webrtc.NewTrackLocalStaticRTP(
+		track.Codec().RTPCodecCapability,
+		"video",
+		"pion",
+	)
+	if err != nil {
+		log.Printf("Error creating Local Track: %v", err)
+		file.Close()
+		return
+	}
+	srv.peerConnections.SetLocalTrack(id, localTrack)
+
 	go func() {
 		defer func() {
 			file.Close()
@@ -177,6 +191,11 @@ func (srv ServerRTC) handleTrack(track *webrtc.TrackRemote, receiver *webrtc.RTP
 
 			if writeErr := ivfWriter.WriteRTP(rtpPacket); writeErr != nil {
 				log.Printf("Write error: %v", writeErr)
+				return
+			}
+
+			if err := localTrack.WriteRTP(rtpPacket); err != nil {
+				log.Printf("Write local error: %v", err)
 				return
 			}
 

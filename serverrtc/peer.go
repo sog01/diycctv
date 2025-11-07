@@ -22,6 +22,15 @@ func (p *PeerConnections) New(id string, peer *webrtc.PeerConnection) {
 	p.lock.Unlock()
 }
 
+func (p *PeerConnections) SetLocalTrack(id string, localTrack *webrtc.TrackLocalStaticRTP) {
+	peerConnection, ok := p.Get(id)
+	if ok {
+		p.lock.Lock()
+		peerConnection.localTrack = localTrack
+		p.lock.Unlock()
+	}
+}
+
 func (p *PeerConnections) Get(id string) (*PeerConnection, bool) {
 	p.lock.RLock()
 	peerConnection, ok := p.peerConnections[id]
