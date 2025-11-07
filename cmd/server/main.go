@@ -5,15 +5,16 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sog01/diycctv/serverrtc"
 )
 
 type BroadcastMessage struct {
+	Id         uuid.UUID
 	Msg        *WebSocketMessage
 	SocketConn *websocket.Conn
-	Type       string
 }
 
 type WebSocketMessage struct {
@@ -34,7 +35,7 @@ var lock = sync.RWMutex{}
 
 func main() {
 	router := mux.NewRouter()
-	router.HandleFunc("/ws/{type}", handleWebSocket)
+	router.HandleFunc("/ws", handleWebSocket)
 
 	log.Println("Server starting on http://localhost:8080")
 
@@ -52,15 +53,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vars := mux.Vars(r)
-
-	lock.Lock()
-	socketConns[vars["type"]] = conn
-	lock.Unlock()
-
 	defer conn.Close()
-
-	log.Println("New WebSocket connection")
+	connID, _ := uuid.NewUUID()
+	log.Println("New WebSocket connection, with connection ID", connID.String())
 
 	for {
 		var msg WebSocketMessage
@@ -71,33 +66,29 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		broadcast <- BroadcastMessage{
-			Msg:  &msg,
-			Type: vars["type"],
+			Id:         connID,
+			Msg:        &msg,
+			SocketConn: conn,
 		}
 	}
 
+	broadcast <- BroadcastMessage{
+		Id: connID,
+		Msg: &WebSocketMessage{
+			Type: "close",
+		},
+	}
 	log.Println("WebSocket closed")
 }
 
 func runBroadcaster(serverChannel chan serverrtc.Message) {
 	for {
 		msg := <-broadcast
-		lock.RLock()
-		if msg.Msg.IsLiveStream {
-			log.Println("Request From Live Streaming", msg.Msg.Type)
-			if msg.Type == "cctv" {
-				socketConns["live"].WriteJSON(msg.Msg)
-			} else {
-				socketConns["cctv"].WriteJSON(msg.Msg)
-			}
-		} else {
-			log.Println("Request From CCTV", msg.Msg.Type)
-			serverChannel <- serverrtc.Message{
-				Type:       msg.Msg.Type,
-				Payload:    msg.Msg.Payload,
-				SocketConn: socketConns[msg.Type],
-			}
+		serverChannel <- serverrtc.Message{
+			Id:         msg.Id,
+			Type:       msg.Msg.Type,
+			Payload:    msg.Msg.Payload,
+			SocketConn: msg.SocketConn,
 		}
-		lock.RUnlock()
 	}
 }
