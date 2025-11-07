@@ -1,31 +1,34 @@
 package main
 
 import (
+	"html/template"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/gorilla/mux"
 )
 
-func main() {
-	router := mux.NewRouter()
+var templates *template.Template
 
+func main() {
+	templates = template.Must(template.ParseGlob("./src/template/*.html"))
+
+	router := mux.NewRouter()
+	fs := http.FileServer(http.Dir("./src/static"))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
 	router.HandleFunc("/", serveIndex)
-	router.HandleFunc("/live", handleLiveStream)
 
 	log.Println("Client Server starting on http://localhost:3000")
 	log.Fatal(http.ListenAndServe(":3000", router))
 }
 
-func handleLiveStream(w http.ResponseWriter, r *http.Request) {
-	live, _ := os.ReadFile("./src/live.html")
-	w.Header().Set("Content-Type", "text/html")
-	w.Write(live)
-}
-
 func serveIndex(w http.ResponseWriter, r *http.Request) {
-	index, _ := os.ReadFile("./src/index.html")
-	w.Header().Set("Content-Type", "text/html")
-	w.Write(index)
+	data := map[string]any{
+		"WebSocketURL": "ws://localhost:8080/ws/cctv",
+	}
+	err := templates.ExecuteTemplate(w, "index.html", data)
+	if err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+		log.Println("Template execution error:", err)
+	}
 }

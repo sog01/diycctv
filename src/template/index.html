@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebRTC with WebSocket</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 30px auto;
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      }
+      h1 {
+        color: #667eea;
+        text-align: center;
+      }
+      video {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 10px;
+        background: #000;
+        margin: 20px auto;
+        display: block;
+      }
+      button {
+        padding: 15px 30px;
+        font-size: 16px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        display: block;
+        margin: 10px auto;
+        font-weight: 600;
+      }
+      button:hover {
+        background: #5568d3;
+      }
+      button:disabled {
+        background: #cbd5e0;
+      }
+      #status {
+        text-align: center;
+        margin: 15px 0;
+        padding: 10px;
+        border-radius: 8px;
+        font-weight: 500;
+      }
+      .success {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .error {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .info {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>WebRTC with WebSocket Signaling</h1>
+      <p style="text-align: center">
+        The correct way with persistent connection!
+      </p>
+
+      <video id="video" autoplay muted playsinline></video>
+
+      <button id="startBtn" onclick="start()">Start Camera</button>
+      <button id="stopBtn" onclick="stop()" disabled>Stop</button>
+
+      <div id="status" class="info">Ready</div>
+    </div>
+    <script>
+      const webSocketURL = `{{.WebSocketURL}}`
+    </script>
+    <script src="/static/peer.js"></script>
+    <script src="/static/index.js"></script>
+  </body>
+</html>
