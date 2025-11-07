@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebRTC with WebSocket</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 30px auto;
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      }
+      h1 {
+        color: #667eea;
+        text-align: center;
+      }
+      video {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 10px;
+        background: #000;
+        margin: 20px auto;
+        display: block;
+      }
+      button {
+        padding: 15px 30px;
+        font-size: 16px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        display: block;
+        margin: 10px auto;
+        font-weight: 600;
+      }
+      button:hover {
+        background: #5568d3;
+      }
+      button:disabled {
+        background: #cbd5e0;
+      }
+      #status {
+        text-align: center;
+        margin: 15px 0;
+        padding: 10px;
+        border-radius: 8px;
+        font-weight: 500;
+      }
+      .success {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .error {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .info {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>WebRTC with WebSocket Signaling</h1>
+      <p style="text-align: center">
+        The correct way with persistent connection!
+      </p>
+
+      <video id="video" autoplay muted playsinline></video>
+
+      <button id="startBtn" onclick="start()">Start Camera</button>
+      <button id="stopBtn" onclick="stop()" disabled>Stop</button>
+
+      <div id="status" class="info">Ready</div>
+    </div>
+
+    <script>
+      let ws, pc, pcLive, stream
+      const video = document.getElementById("video")
+      const status = document.getElementById("status")
+      const startBtn = document.getElementById("startBtn")
+      const stopBtn = document.getElementById("stopBtn")
+
+      function setStatus(msg, type = "info") {
+        status.textContent = msg
+        status.className = type
+        console.log(msg)
+      }
+
+      async function start() {
+        try {
+          setStatus("Connecting to server...", "info")
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          })
+          let track
+          await stream.getTracks().forEach((trc) => {
+            track = trc
+          })
+
+          // Connect WebSocket
+          ws = new WebSocket("ws://localhost:8080/ws/cctv")
+
+          ws.onopen = async () => {
+            setStatus("Getting camera...", "info")
+
+            // Get camera
+            video.srcObject = stream
+
+            setStatus("Creating peer connection...", "info")
+
+            // Create peer connection
+            pc = new RTCPeerConnection({
+              iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+            })
+
+            // Add tracks
+            pc.addTrack(track, stream)
+
+            // Send ICE candidates to server
+            pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                ws.send(
+                  JSON.stringify({
+                    type: "candidate",
+                    payload: JSON.stringify(event.candidate.toJSON()),
+                  })
+                )
+                console.log("Sent ICE candidate")
+              }
+            }
+
+            // Monitor connection
+            pc.onconnectionstatechange = () => {
+              console.log("Connection:", pc.connectionState)
+              if (pc.connectionState === "connected") {
+                setStatus("Connected! Streaming video", "success")
+              } else if (pc.connectionState === "failed") {
+                setStatus("Connection failed", "error")
+              }
+            }
+
+            // Create offer
+            const offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+
+            // Send offer to server
+            ws.send(
+              JSON.stringify({
+                type: "offer",
+                payload: JSON.stringify(offer),
+              })
+            )
+
+            setStatus("Sent offer, waiting for answer...", "info")
+          }
+
+          ws.onmessage = async (event) => {
+            const msg = JSON.parse(event.data)
+
+            if (msg.type === "answer") {
+              console.log("Received answer")
+              const answer = JSON.parse(msg.payload)
+              await pc.setRemoteDescription(answer)
+              setStatus("Connecting...", "info")
+            } else if (msg.type === "candidate") {
+              console.log("Received ICE candidate")
+              const candidate = JSON.parse(msg.payload)
+              await pc.addIceCandidate(candidate)
+            } else if (msg.type === "live") {
+              console.log("Received Live Request")
+              // Create peer connection
+              pcLive = new RTCPeerConnection({
+                iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+              })
+
+              // Add tracks
+              pcLive.addTrack(track, stream)
+
+              // Send ICE candidates to server
+              pcLive.onicecandidate = (event) => {
+                if (event.candidate) {
+                  ws.send(
+                    JSON.stringify({
+                      type: "candidate",
+                      isLiveStream: true,
+                      payload: JSON.stringify(event.candidate.toJSON()),
+                    })
+                  )
+                  console.log("Sent Live ICE candidate")
+                }
+              }
+
+              // Monitor connection
+              pcLive.onconnectionstatechange = () => {
+                console.log("Live Connection:", pcLive.connectionState)
+                if (pcLive.connectionState === "connected") {
+                  setStatus("Live Connected! Streaming video", "success")
+                } else if (pcLive.connectionState === "failed") {
+                  setStatus("Live Connection failed", "error")
+                }
+              }
+
+              // Create offer
+              const offer = await pcLive.createOffer()
+              await pcLive.setLocalDescription(offer)
+
+              // Send offer to server
+              ws.send(
+                JSON.stringify({
+                  type: "offer",
+                  isLiveStream: true,
+                  payload: JSON.stringify(offer),
+                })
+              )
+
+              setStatus("Sent Live offer, waiting for answer...", "info")
+            } else if (msg.type === "live-answer") {
+              console.log("Received live answer")
+              const answer = JSON.parse(msg.payload)
+              await pcLive.setRemoteDescription(answer)
+              setStatus("Connecting...", "info")
+            } else if (msg.type === "live-candidate") {
+              console.log("Received ICE candidate")
+              const candidate = JSON.parse(msg.payload)
+              await pcLive.addIceCandidate(candidate)
+            }
+          }
+
+          ws.onerror = (error) => {
+            console.error("WebSocket error:", error)
+            setStatus("WebSocket error", "error")
+          }
+
+          ws.onclose = () => {
+            console.log("WebSocket closed")
+            setStatus("Connection closed", "error")
+          }
+
+          startBtn.disabled = true
+          stopBtn.disabled = false
+        } catch (error) {
+          console.error("Error:", error)
+          setStatus("❌ Error: " + error.message, "error")
+          stop()
+        }
+      }
+
+      function stop() {
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop())
+          stream = null
+        }
+        if (pc) {
+          pc.close()
+          pc = null
+        }
+        if (ws) {
+          ws.close()
+          ws = null
+        }
+        video.srcObject = null
+        setStatus("Stopped", "info")
+        startBtn.disabled = false
+        stopBtn.disabled = true
+      }
+
+      window.addEventListener("beforeunload", stop)
+    </script>
+  </body>
+</html>
