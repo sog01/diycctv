@@ -7,11 +7,13 @@ import (
 	"os"
 
 	"github.com/gorilla/mux"
+	"github.com/subosito/gotenv"
 )
 
 var templates *template.Template
 
 func main() {
+	gotenv.Load()
 	templates = template.Must(template.ParseGlob("./src/template/*.html"))
 
 	router := mux.NewRouter()
@@ -59,7 +61,7 @@ func serveStream(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
 	data := map[string]any{
-		"WebSocketURL": "ws://localhost:8080/ws",
+		"WebSocketURL": os.Getenv("WEB_SOCKET_URL"),
 		"Id":           vars["id"],
 	}
 	err := templates.ExecuteTemplate(w, "stream.html", data)
