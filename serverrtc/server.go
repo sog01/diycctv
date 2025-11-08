@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media/ivfwriter"
 	wrtc "github.com/sog01/diycctv/pkg/webrtc"
+	"github.com/sog01/diycctv/pkg/ws"
 )
 
 type Message struct {
@@ -20,7 +20,7 @@ type Message struct {
 	StreamId   string
 	Type       string
 	Payload    string
-	SocketConn *websocket.Conn
+	SocketConn *ws.SafeConn
 }
 
 type ServerRTC struct {
@@ -34,6 +34,10 @@ func NewServerRTC() *ServerRTC {
 		serverChannel:   serverChannel,
 		peerConnections: NewPeerConnections(),
 	}
+}
+
+func (srv *ServerRTC) GetConnectionPeerConnectionsIds() []string {
+	return srv.peerConnections.GetIds()
 }
 
 func (srv *ServerRTC) RunServerListener() chan Message {
@@ -142,8 +146,10 @@ func (srv *ServerRTC) handleStream(msg Message) {
 		return
 	}
 	peerConnection.AddTrack(peerStream.localTrack)
+	peerConnection.OnNegotiationNeeded(func() {
+		srv.sendOffer(msg, peerConnection)
+	})
 	srv.peerConnections.New(msg.Id.String(), peerConnection)
-	srv.sendOffer(msg, peerConnection)
 }
 
 func (srv *ServerRTC) sendOffer(msg Message, peerConnection *webrtc.PeerConnection) {

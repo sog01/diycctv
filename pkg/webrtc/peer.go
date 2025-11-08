@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
+	"github.com/sog01/diycctv/pkg/ws"
 )
 
-func CreatePeer(config webrtc.Configuration, conn *websocket.Conn) (*webrtc.PeerConnection, error) {
+func CreatePeer(config webrtc.Configuration, conn *ws.SafeConn) (*webrtc.PeerConnection, error) {
 	peerConnection, err := webrtc.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed create peer connection: %v", err)
@@ -23,7 +23,7 @@ func CreatePeer(config webrtc.Configuration, conn *websocket.Conn) (*webrtc.Peer
 	return peerConnection, nil
 }
 
-func handleICECandidate(socketConn *websocket.Conn, candidate *webrtc.ICECandidate) {
+func handleICECandidate(socketConn *ws.SafeConn, candidate *webrtc.ICECandidate) {
 	if candidate == nil {
 		return
 	}

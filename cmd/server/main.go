@@ -3,18 +3,22 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/sog01/diycctv/pkg/rest"
+	"github.com/sog01/diycctv/pkg/ws"
 	"github.com/sog01/diycctv/serverrtc"
+	"github.com/subosito/gotenv"
 )
 
 type BroadcastMessage struct {
 	Id         uuid.UUID
 	Msg        *WebSocketMessage
-	SocketConn *websocket.Conn
+	SocketConn *ws.SafeConn
 }
 
 type WebSocketMessage struct {
@@ -22,6 +26,10 @@ type WebSocketMessage struct {
 	Type         string `json:"type"`
 	Payload      string `json:"payload"`
 	IsLiveStream bool   `json:"isLiveStream"`
+}
+
+type ServerAPI struct {
+	serverRtc *serverrtc.ServerRTC
 }
 
 var upgrader = websocket.Upgrader{
@@ -35,16 +43,26 @@ var socketConns = make(map[string]*websocket.Conn)
 var lock = sync.RWMutex{}
 
 func main() {
+	gotenv.Load()
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", handleWebSocket)
 
-	log.Println("Server starting on http://localhost:8080")
+	port := os.Getenv("SERVER_PORT")
+	log.Println("Server starting on http://localhost:" + port)
 
 	serverRtc := serverrtc.NewServerRTC()
 	serverChan := serverRtc.RunServerListener()
 	go runBroadcaster(serverChan)
 
-	log.Fatal(http.ListenAndServe(":8080", router))
+	api := ServerAPI{serverRtc: serverRtc}
+	router.HandleFunc("/api/live", api.handleGetLiveRecords).Methods("GET")
+
+	log.Fatal(http.ListenAndServe(":"+port, router))
+}
+
+func (api *ServerAPI) handleGetLiveRecords(w http.ResponseWriter, r *http.Request) {
+	resp := rest.Response{}
+	resp.WriteSuccessJSON(w, r.Context(), http.StatusOK, api.serverRtc.GetConnectionPeerConnectionsIds())
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +75,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 	connID, _ := uuid.NewUUID()
 	log.Println("New WebSocket connection, with connection ID", connID.String())
-
+	safeConn := ws.NewSafeConn(conn)
 	for {
 		var msg WebSocketMessage
 		err := conn.ReadJSON(&msg)
@@ -69,7 +87,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		broadcast <- BroadcastMessage{
 			Id:         connID,
 			Msg:        &msg,
-			SocketConn: conn,
+			SocketConn: safeConn,
 		}
 	}
 

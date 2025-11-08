@@ -44,6 +44,18 @@ func (p *PeerConnections) Remove(id string) {
 	p.lock.Unlock()
 }
 
+func (p *PeerConnections) GetIds() []string {
+	ids := []string{}
+	p.lock.Lock()
+
+	for id := range p.peerConnections {
+		ids = append(ids, id)
+	}
+
+	p.lock.Unlock()
+	return ids
+}
+
 func NewPeerConnections() *PeerConnections {
 	return &PeerConnections{
 		lock:            &sync.RWMutex{},
