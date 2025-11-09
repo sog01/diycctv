@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/subosito/gotenv"
@@ -55,13 +57,26 @@ func serveAdmin(w http.ResponseWriter, r *http.Request) {
 		log.Println("failed to unmarshal")
 		return
 	}
-	data := []string{}
-	for _, d := range liveResp["data"].([]any) {
-		id, _ := d.(string)
-		data = append(data, id)
+
+	datas := liveResp["data"].([]any)
+	list := []string{}
+	for i, d := range datas {
+		streamId, _ := d.(string)
+		if i%3 == 0 {
+			list = append(list, "<ul>")
+		}
+		list = append(list, fmt.Sprintf(`<li><video streamId="%s" autoplay muted playsinline></video></li>`, streamId))
+		if (i+1)%3 == 0 || i == len(datas)-1 {
+			list = append(list, "</ul>")
+		}
 	}
 
-	err = templates.ExecuteTemplate(w, "admin.html", data)
+	videos := strings.Join(list, "\n")
+	videos = "<div>\n" + videos + "\n</div>"
+	err = templates.ExecuteTemplate(w, "admin.html", map[string]any{
+		"WebSocketURL": os.Getenv("WEB_SOCKET_URL"),
+		"Videos":       template.HTML(videos),
+	})
 	if err != nil {
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 		log.Println("Template execution error:", err)

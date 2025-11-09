@@ -56,6 +56,21 @@ func (p *PeerConnections) GetIds() []string {
 	return ids
 }
 
+func (p *PeerConnections) GetActiveRecords() []string {
+	ids := []string{}
+	p.lock.Lock()
+
+	for id, conn := range p.peerConnections {
+		if conn.localTrack == nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+
+	p.lock.Unlock()
+	return ids
+}
+
 func NewPeerConnections() *PeerConnections {
 	return &PeerConnections{
 		lock:            &sync.RWMutex{},

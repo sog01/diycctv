@@ -36,16 +36,7 @@ async function start() {
 
     ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data)
-      if (msg.type === "answer") {
-        console.log("Received answer")
-        const answer = JSON.parse(msg.payload)
-        await pc.setRemoteDescription(answer)
-        setStatus("Connecting...", "info")
-      } else if (msg.type === "candidate") {
-        console.log("Received ICE candidate")
-        const candidate = JSON.parse(msg.payload)
-        await pc.addIceCandidate(candidate)
-      }
+      handleWSEvent(msg, pc)
     }
 
     ws.onerror = (error) => {

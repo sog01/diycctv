@@ -62,7 +62,7 @@ func main() {
 
 func (api *ServerAPI) handleGetLiveRecords(w http.ResponseWriter, r *http.Request) {
 	resp := rest.Response{}
-	resp.WriteSuccessJSON(w, r.Context(), http.StatusOK, api.serverRtc.GetConnectionPeerConnectionsIds())
+	resp.WriteSuccessJSON(w, r.Context(), http.StatusOK, api.serverRtc.GetPeerConnectionsActiveRecords())
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {

@@ -1,9 +1,10 @@
 <html>
   <body>
-    <ul>
-      {{range .}}
-      <li><a href="/stream/{{.}}">{{.}}</a></li>
-      {{end}}
-    </ul>
+    {{.Videos}}
   </body>
+  <script>
+    const webSocketURL = `{{.WebSocketURL}}`
+  </script>
+  <script src="/static/peer.js"></script>
+  <script src="/static/admin.js"></script>
 </html>

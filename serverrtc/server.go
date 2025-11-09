@@ -36,8 +36,12 @@ func NewServerRTC() *ServerRTC {
 	}
 }
 
-func (srv *ServerRTC) GetConnectionPeerConnectionsIds() []string {
+func (srv *ServerRTC) GetPeerConnectionsIds() []string {
 	return srv.peerConnections.GetIds()
+}
+
+func (srv *ServerRTC) GetPeerConnectionsActiveRecords() []string {
+	return srv.peerConnections.GetActiveRecords()
 }
 
 func (srv *ServerRTC) RunServerListener() chan Message {
@@ -109,7 +113,7 @@ func (srv *ServerRTC) handleOffer(msg Message) {
 			},
 		},
 	}
-	peerConnection, err := wrtc.CreatePeer(config, msg.SocketConn)
+	peerConnection, err := wrtc.CreatePeer(config, msg.SocketConn, "")
 	if err != nil {
 		log.Println("failed to create peer: ", err)
 		return
@@ -131,6 +135,7 @@ func (srv *ServerRTC) handleStream(msg Message) {
 
 	if peerStream.localTrack == nil {
 		log.Println("local track not ready yet, camera not connected")
+		return
 	}
 
 	config := webrtc.Configuration{
@@ -140,7 +145,7 @@ func (srv *ServerRTC) handleStream(msg Message) {
 			},
 		},
 	}
-	peerConnection, err := wrtc.CreatePeer(config, msg.SocketConn)
+	peerConnection, err := wrtc.CreatePeer(config, msg.SocketConn, msg.StreamId)
 	if err != nil {
 		log.Println("failed to create peer: ", err)
 		return
@@ -171,8 +176,9 @@ func (srv *ServerRTC) sendOffer(msg Message, peerConnection *webrtc.PeerConnecti
 	}
 
 	if err := msg.SocketConn.WriteJSON(map[string]any{
-		"type":    "offer",
-		"payload": string(offerJSON),
+		"type":     "offer",
+		"streamId": msg.StreamId,
+		"payload":  string(offerJSON),
 	}); err != nil {
 		log.Println("Write offer error:", err)
 		return
@@ -210,8 +216,9 @@ func (srv *ServerRTC) sendAnswer(msg Message, peerConnection *webrtc.PeerConnect
 	}
 
 	if err := msg.SocketConn.WriteJSON(map[string]any{
-		"type":    "answer",
-		"payload": string(answerJSON),
+		"type":     "answer",
+		"streamId": msg.StreamId,
+		"payload":  string(answerJSON),
 	}); err != nil {
 		log.Println("Write answer error:", err)
 		return
