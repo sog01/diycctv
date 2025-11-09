@@ -1,6 +1,272 @@
 <html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stream Viewer</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #000;
+        color: #fff;
+        overflow: hidden;
+        height: 100vh;
+      }
+
+      .container {
+        display: flex;
+        height: 100vh;
+        gap: 0;
+      }
+
+      .video-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #000;
+        position: relative;
+      }
+
+      #video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .info-panel {
+        width: 320px;
+        background: linear-gradient(to bottom, #1a1a1a, #0d0d0d);
+        padding: 24px;
+        overflow-y: auto;
+        border-left: 1px solid #333;
+      }
+
+      .info-panel h2 {
+        font-size: 18px;
+        margin-bottom: 20px;
+        color: #fff;
+        border-bottom: 2px solid #0066cc;
+        padding-bottom: 10px;
+      }
+
+      .info-section {
+        margin-bottom: 24px;
+      }
+
+      .info-section h3 {
+        font-size: 14px;
+        color: #888;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        letter-spacing: 1px;
+      }
+
+      .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #2a2a2a;
+      }
+
+      .info-item:last-child {
+        border-bottom: none;
+      }
+
+      .info-label {
+        color: #aaa;
+        font-size: 13px;
+      }
+
+      .info-value {
+        color: #fff;
+        font-weight: 600;
+        font-size: 13px;
+        text-align: right;
+      }
+
+      .status-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .status-connected {
+        background-color: #00ff00;
+        box-shadow: 0 0 8px #00ff00;
+      }
+
+      .status-disconnected {
+        background-color: #ff0000;
+        box-shadow: 0 0 8px #ff0000;
+      }
+
+      .status-connecting {
+        background-color: #ffaa00;
+        box-shadow: 0 0 8px #ffaa00;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .stats-graph {
+        margin-top: 8px;
+        padding: 12px;
+        background: #1a1a1a;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+      }
+
+      /* Responsive design */
+      @media (max-width: 1024px) {
+        .container {
+          flex-direction: column;
+        }
+
+        .info-panel {
+          width: 100%;
+          height: 250px;
+          border-left: none;
+          border-top: 1px solid #333;
+        }
+
+        .video-container {
+          flex: 1;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .info-panel {
+          padding: 16px;
+          height: 200px;
+        }
+
+        .info-panel h2 {
+          font-size: 16px;
+        }
+      }
+
+      /* Back button */
+      .back-button {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        padding: 10px 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        text-decoration: none;
+        border-radius: 4px;
+        font-size: 14px;
+        z-index: 10;
+        transition: background 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .back-button:hover {
+        background: rgba(0, 0, 0, 0.9);
+      }
+    </style>
+  </head>
   <body>
-    <video id="video" autoplay muted playsinline></video>
+    <div class="container">
+      <div class="video-container">
+        <a href="/admin" class="back-button">← Back</a>
+        <video id="video" autoplay muted playsinline></video>
+      </div>
+      <div class="info-panel">
+        <h2>Stream Information</h2>
+
+        <div class="info-section">
+          <h3>Connection</h3>
+          <div class="info-item">
+            <span class="info-label">Status</span>
+            <span class="info-value">
+              <span
+                class="status-indicator status-connecting"
+                id="statusIndicator"
+              ></span>
+              <span id="connectionStatus">Connecting...</span>
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Stream ID</span>
+            <span class="info-value" id="streamId">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Connection Type</span>
+            <span class="info-value" id="connectionType">-</span>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <h3>Network Stats</h3>
+          <div class="info-item">
+            <span class="info-label">Bitrate</span>
+            <span class="info-value" id="bitrate">0 kbps</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Packets Lost</span>
+            <span class="info-value" id="packetsLost">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Round Trip Time</span>
+            <span class="info-value" id="rtt">0 ms</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Jitter</span>
+            <span class="info-value" id="jitter">0 ms</span>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <h3>Transfer Data</h3>
+          <div class="info-item">
+            <span class="info-label">Data Received</span>
+            <span class="info-value" id="bytesReceived">0 MB</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Frames Received</span>
+            <span class="info-value" id="framesReceived">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Frames Dropped</span>
+            <span class="info-value" id="framesDropped">0</span>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <h3>Video Quality</h3>
+          <div class="info-item">
+            <span class="info-label">Resolution</span>
+            <span class="info-value" id="resolution">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Frame Rate</span>
+            <span class="info-value" id="frameRate">0 fps</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Codec</span>
+            <span class="info-value" id="codec">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
     <script>
       const webSocketURL = `{{.WebSocketURL}}`
       const id = "{{.Id}}"

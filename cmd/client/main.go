@@ -65,7 +65,13 @@ func serveAdmin(w http.ResponseWriter, r *http.Request) {
 		if i%3 == 0 {
 			list = append(list, "<ul>")
 		}
-		list = append(list, fmt.Sprintf(`<li><video streamId="%s" autoplay muted playsinline></video></li>`, streamId))
+		list = append(list, fmt.Sprintf(`
+		<li>
+			<a href="/stream/%s">
+				<video streamId="%s" autoplay muted playsinline></video>
+			</a>
+		</li>
+		`, streamId, streamId))
 		if (i+1)%3 == 0 || i == len(datas)-1 {
 			list = append(list, "</ul>")
 		}

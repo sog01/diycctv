@@ -21,7 +21,7 @@ async function start() {
 
       stream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: false,
+        audio: true,
       })
 
       video.srcObject = stream
