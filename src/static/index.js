@@ -27,7 +27,7 @@ async function start() {
       video.srcObject = stream
 
       setStatus("Creating peer connection...", "info")
-      pc = createPeer()
+      pc = createPeer(ws)
       await stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream)
       })

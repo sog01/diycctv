@@ -18,7 +18,7 @@ ws.onopen = async () => {
 ws.onmessage = async (event) => {
   const msg = JSON.parse(event.data)
   if (msg.type === "offer") {
-    pc = createPeer()
+    pc = createPeer(ws)
     pc.ontrack = (e) => {
       handleOnTrack(e, video)
       // Start collecting stats once track is received

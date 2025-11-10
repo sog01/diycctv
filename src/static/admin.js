@@ -16,7 +16,7 @@ videos.forEach((video) => {
   ws.onmessage = async (event) => {
     const msg = JSON.parse(event.data)
     if (msg.type === "offer") {
-      pc = createPeer()
+      pc = createPeer(ws)
       const video = document.querySelector(`video[streamId="${msg.streamId}"]`)
       console.log(video)
       pc.ontrack = (e) => {
@@ -33,7 +33,6 @@ videos.forEach((video) => {
           payload: JSON.stringify(answer),
         })
       )
-      list_pc.push({ streamId: msg.streamId, pc: pc })
     } else {
       handleWSEvent(msg, pc)
     }
