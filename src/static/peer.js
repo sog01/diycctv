@@ -91,13 +91,6 @@ async function handleOnTrack(e, video) {
 
   video.srcObject = stream
   console.log("Video srcObject set")
-
-  // try {
-  //   await video.play()
-  //   console.log("Video is playing!")
-  // } catch (err) {
-  //   console.error("Video play error:", err)
-  // }
 }
 
 async function handleWSEvent(msg, pc) {
