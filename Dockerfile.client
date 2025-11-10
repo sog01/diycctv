@@ -1,0 +1,33 @@
+# Build stage
+FROM golang:1.24.9-alpine AS builder
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the client binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o client ./cmd/client
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+
+# Copy the binary from builder
+COPY --from=builder /app/client .
+
+# Copy templates and static files
+COPY --from=builder /app/src/template ./src/template
+COPY --from=builder /app/src/static ./src/static
+
+# Expose the client port (default 8080, can be overridden)
+EXPOSE 8080
+
+CMD ["./client"]
