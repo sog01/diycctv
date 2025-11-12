@@ -24,8 +24,6 @@ The client interface allows cameras to connect and stream video to the server.
 - Connection status display ("Sent offer, waiting for answer...")
 - Uses WebRTC peer connection for video streaming
 
-![CCTV Client Interface](screenshots/client.png)
-
 #### 2. Admin Page (`/admin`)
 
 A dashboard displaying all connected CCTV cameras in a grid layout.
@@ -35,8 +33,6 @@ A dashboard displaying all connected CCTV cameras in a grid layout.
 - Automatically updates when cameras connect/disconnect
 - Grid layout (3 cameras per row)
 - Each thumbnail links to the detailed stream page
-
-![Admin Dashboard](screenshots/admin.png)
 
 #### 3. Stream Page (`/stream/{id}`)
 
@@ -61,8 +57,6 @@ Detailed view of an individual camera stream with comprehensive statistics.
   - Frame Rate (fps)
   - Codec (VP8/VP9/H264)
 - Back button to return to admin page
-
-![Stream Details](screenshots/stream.png)
 
 ## Prerequisites
 
